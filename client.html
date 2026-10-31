@@ -3,11 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>অ্যান্টি-থেফট লাইভ ট্র্যাকিং অ্যাপ</title>
-    <!-- Tailwind CSS -->
+    <title>অ্যান্টি-থেফট ক্লায়েন্ট অ্যাপ</title>
     <script src="https://cdn.tailwindcss.com"></script>
 
-    <!-- Firebase SDKs -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
         import { getDatabase, ref, set } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
@@ -26,60 +24,54 @@
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
 
-        window.start100PercentLiveTracking = function() {
+        window.registerAndTrackDevice = function() {
             const imei1 = document.getElementById('clientImei1').value.trim();
-            const imei2 = document.getElementById('clientImei2').value.trim();
             const sim = document.getElementById('clientSim').value.trim();
             const statusBox = document.getElementById('statusMessage');
 
             if (!imei1) {
-                alert('দয়া করে অন্তত IMEI 1 নম্বরটি লিখুন!');
+                alert('দয়া করে ফোনের মূল IMEI 1 নম্বরটি লিখুন!');
                 return;
             }
 
             statusBox.classList.remove('hidden');
             statusBox.className = "p-3 rounded-xl text-xs text-center font-semibold bg-blue-50 text-blue-700";
-            statusBox.innerText = "🛰️ জিপিএস স্যাটেলাইট কানেক্ট হচ্ছে... শতভাগ নিখুঁত লাইভ লোকেশন নেওয়া হচ্ছে।";
+            statusBox.innerText = "🛰️ জিপিএস স্যাটেলাইট থেকে ডিভাইস লোকেশন নেওয়া হচ্ছে...";
 
             if (navigator.geolocation) {
-                const options = {
-                    enableHighAccuracy: true,
-                    timeout: 10000,
-                    maximumAge: 0
-                };
+                const options = { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 };
 
+                // watchPosition দিয়ে ফোন যেখানেই যাবে এই IMEI-এর আন্ডারেই লাইভ আপডেট হবে
                 navigator.geolocation.watchPosition(
                     (position) => {
                         const lat = position.coords.latitude;
                         const lon = position.coords.longitude;
-                        const accuracy = position.coords.accuracy;
                         const time = new Date().toLocaleTimeString();
 
-                        const liveData = {
-                            imei1: imei1,
-                            imei2: imei2 || "N/A",
-                            simNumber: sim || "N/A",
+                        const devicePayload = {
+                            imei: imei1,
+                            simNumber: sim || "নম্বর দেওয়া হয়নি",
                             lat: lat,
                             lon: lon,
-                            accuracy: accuracy.toFixed(1) + " মিটার নিখুঁত",
                             time: time,
-                            status: "Active & Moving"
+                            status: "Protected"
                         };
 
-                        set(ref(db, 'devices/' + imei1), liveData)
+                        // ফায়ারবেসে সরাসরি `devices/IMEI_NUMBER` হিসেবে সেভ হবে
+                        set(ref(db, 'devices/' + imei1), devicePayload)
                         .then(() => {
                             statusBox.className = "p-3 rounded-xl text-xs text-center font-semibold bg-green-50 text-green-700";
-                            statusBox.innerHTML = `✅ লাইভ ট্র্যাকিং ১০০% সচল!<br><span class='text-[10px] text-gray-600'>ল্যাটিটিউড: ${lat}, লংজিটিউড: ${lon} (${accuracy.toFixed(1)}m accuracy)</span>`;
+                            statusBox.innerHTML = `✅ ডিভাইস রেজিস্টার্ড ও লাইভ ট্র্যাকিং সচল!<br><span class='text-[10px] text-gray-600'>IMEI: ${imei1} | Lat: ${lat}, Lon: ${lon}</span>`;
                         });
                     },
                     (error) => {
                         statusBox.className = "p-3 rounded-xl text-xs text-center font-semibold bg-red-50 text-red-700";
-                        statusBox.innerText = `❌ জিপিএস এরর: ${error.message}. দয়া করে ফোনের Location (GPS) অন রাখুন।`;
+                        statusBox.innerText = `❌ জিপিএস এরর: ${error.message}`;
                     },
                     options
                 );
             } else {
-                alert("আপনার ব্রাউজার বা ডিভাইসে জিপিএস সাপোর্ট করে না।");
+                alert("আপনার ডিভাইস জিপিএস সাপোর্ট করে না।");
             }
         };
     </script>
@@ -87,28 +79,23 @@
 <body class="bg-slate-50 font-sans">
     <div class="container mx-auto p-4 max-w-lg mt-6 mb-10">
         <div class="bg-indigo-600 text-white p-6 rounded-t-2xl shadow-lg text-center">
-            <h1 class="text-2xl font-bold">🛡️ অ্যান্টি-থেফট লাইভ ট্র্যাকিং</h1>
-            <p class="text-xs mt-1 text-indigo-100">১০০% নিখুঁত জিপিএস পিন-পয়েন্ট সিস্টেম</p>
+            <h1 class="text-2xl font-bold">🛡️ অ্যান্টি-থেফট ইউজার অ্যাপ</h1>
+            <p class="text-xs mt-1 text-indigo-100">আইএমইআই বাইন্ডিং ও লাইভ ট্র্যাকিং</p>
         </div>
 
         <div class="bg-white p-6 rounded-b-2xl shadow-lg space-y-4 border-x border-b border-gray-200">
             <div>
-                <label class="block text-xs font-semibold text-gray-700 uppercase">IMEI 1 নম্বর:</label>
-                <input type="text" id="clientImei1" placeholder="যেমন: 865432041234567" class="w-full mt-1 p-3 border border-gray-300 rounded-xl focus:outline-none text-sm">
-            </div>
-
-            <div>
-                <label class="block text-xs font-semibold text-gray-700 uppercase">IMEI 2 নম্বর (ঐচ্ছিক):</label>
-                <input type="text" id="clientImei2" placeholder="যেমন: 865432041234568" class="w-full mt-1 p-3 border border-gray-300 rounded-xl focus:outline-none text-sm">
+                <label class="block text-xs font-semibold text-gray-700 uppercase">ফোনের IMEI 1 নম্বর:</label>
+                <input type="text" id="clientImei1" placeholder="যেমন: 865432041234567" class="w-full mt-1 p-3 border rounded-xl text-sm focus:outline-none">
             </div>
 
             <div>
                 <label class="block text-xs font-semibold text-gray-700 uppercase">বর্তমান সিম নম্বর:</label>
-                <input type="text" id="clientSim" placeholder="যেমন: +880 1712-345678" class="w-full mt-1 p-3 border border-gray-300 rounded-xl focus:outline-none text-sm">
+                <input type="text" id="clientSim" placeholder="যেমন: +880 1712-345678" class="w-full mt-1 p-3 border rounded-xl text-sm focus:outline-none">
             </div>
 
-            <button onclick="start100PercentLiveTracking()" class="w-full bg-indigo-600 text-white py-3 rounded-xl font-semibold hover:bg-indigo-700 transition shadow-md text-sm">
-                🛰️ ১০০% নিখুঁত লাইভ ট্র্যাকিং শুরু করুন
+            <button onclick="registerAndTrackDevice()" class="w-full bg-indigo-600 text-white py-3 rounded-xl font-semibold hover:bg-indigo-700 transition shadow text-sm">
+                প্রটেকশন অন ও লোকেশন সিঙ্ক করুন
             </button>
 
             <div id="statusMessage" class="hidden p-3 rounded-xl text-xs text-center font-semibold"></div>
