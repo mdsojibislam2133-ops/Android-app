@@ -3,11 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>অ্যাডমিন লাইভ ট্র্যাকিং ও কন্ট্রোল প্যানেল</title>
-    <!-- Tailwind CSS -->
+    <title>অ্যাডমিন ট্র্যাকিং প্যানেল</title>
     <script src="https://cdn.tailwindcss.com"></script>
 
-    <!-- Firebase SDKs -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
         import { getDatabase, ref, onValue, update } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
@@ -26,11 +24,10 @@
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
         const CORRECT_PASSWORD = "123690";
-        let trackingListener = null;
+        let activeTracker = null;
 
         window.checkPassword = function() {
-            const pass = document.getElementById('adminPassword').value.trim();
-            if (pass === CORRECT_PASSWORD) {
+            if (document.getElementById('adminPassword').value.trim() === CORRECT_PASSWORD) {
                 document.getElementById('loginScreen').classList.add('hidden');
                 document.getElementById('dashboardScreen').classList.remove('hidden');
             } else {
@@ -42,35 +39,34 @@
             document.getElementById('dashboardScreen').classList.add('hidden');
             document.getElementById('loginScreen').classList.remove('hidden');
             document.getElementById('adminPassword').value = "";
-            if (trackingListener) trackingListener();
+            if (activeTracker) activeTracker();
         };
 
-        window.startTrackingByIMEI = function() {
-            const imei = document.getElementById('searchImei').value.trim();
+        // নির্দিষ্ট IMEI দিয়ে সার্চ ও লাইভ ট্র্যাকিং
+        window.searchAndTrackByIMEI = function() {
+            const searchImei = document.getElementById('searchImei').value.trim();
             const resultBox = document.getElementById('resultBox');
             const errorBox = document.getElementById('errorBox');
 
-            if (!imei) {
-                alert('দয়া করে IMEI 1 নম্বরটি লিখুন!');
+            if (!searchImei) {
+                alert('দয়া করে যে ফোনের IMEI দিয়ে ট্র্যাক করতে চান তা লিখুন!');
                 return;
             }
 
-            if (trackingListener) {
-                trackingListener();
-            }
+            if (activeTracker) activeTracker();
 
-            const deviceRef = ref(db, `devices/${imei}`);
+            const targetDeviceRef = ref(db, `devices/${searchImei}`);
 
-            trackingListener = onValue(deviceRef, (snapshot) => {
+            // ফায়ারবেস থেকে নির্দিষ্ট IMEI-এর ডাটা রিয়েল-টাইমে ফেচ করা
+            activeTracker = onValue(targetDeviceRef, (snapshot) => {
                 if (snapshot.exists()) {
                     const data = snapshot.val();
-                    document.getElementById('resImei1').innerText = data.imei1;
+                    document.getElementById('resImei').innerText = data.imei;
                     document.getElementById('resSim').innerText = data.simNumber;
-                    document.getElementById('resAccuracy').innerText = data.accuracy;
                     document.getElementById('resTime').innerText = data.time;
 
-                    const googleMapsUrl = `https://www.google.com/maps?q=${data.lat},${data.lon}`;
-                    document.getElementById('mapButton').href = googleMapsUrl;
+                    const mapsUrl = `https://www.google.com/maps?q=${data.lat},${data.lon}`;
+                    document.getElementById('mapButton').href = mapsUrl;
 
                     resultBox.classList.remove('hidden');
                     errorBox.classList.add('hidden');
@@ -81,19 +77,11 @@
             });
         };
 
-        window.sendRemoteLock = function() {
+        window.sendLockCmd = function() {
             const imei = document.getElementById('searchImei').value.trim();
             if (!imei) return;
             update(ref(db, `devices/${imei}`), { remoteLock: true }).then(() => {
-                alert("🔒 রিমোট ডিসপ্লে লক কমান্ড সফলভাবে পাঠানো হয়েছে!");
-            });
-        };
-
-        window.sendSilentMode = function() {
-            const imei = document.getElementById('searchImei').value.trim();
-            if (!imei) return;
-            update(ref(db, `devices/${imei}`), { silentMode: true }).then(() => {
-                alert("🔕 ফোন সাইলেন্ট মোডে পাঠানো হয়েছে!");
+                alert("🔒 এই IMEI ডিভাইসে রিমোট লক কমান্ড পাঠানো হয়েছে!");
             });
         };
     </script>
@@ -102,9 +90,9 @@
 
     <!-- Login -->
     <div id="loginScreen" class="container mx-auto p-4 max-w-sm mt-24">
-        <div class="bg-white p-6 rounded-2xl shadow-xl space-y-4 border border-gray-200 text-center">
+        <div class="bg-white p-6 rounded-2xl shadow-xl space-y-4 border text-center">
             <div class="bg-red-600 text-white p-4 rounded-xl shadow">
-                <h2 class="text-xl font-bold">🔐 অ্যাডমিন লগইন</h2>
+                <h2 class="text-xl font-bold">🔐 অ্যাডমিন প্যানেল</h2>
                 <p class="text-xs text-red-100 mt-1">পাসওয়ার্ড দিন (123690)</p>
             </div>
             <input type="password" id="adminPassword" placeholder="পাসওয়ার্ড" class="w-full p-3 border rounded-xl text-center tracking-widest text-lg focus:outline-none">
@@ -117,31 +105,31 @@
     <div id="dashboardScreen" class="container mx-auto p-4 max-w-xl mt-6 mb-10 hidden">
         <div class="bg-red-600 text-white p-6 rounded-t-2xl shadow-lg flex justify-between items-center">
             <div>
-                <h1 class="text-xl font-bold">🛡️ ১০০% লাইভ ট্র্যাকিং প্যানেল</h1>
-                <p class="text-xs text-red-100 mt-1">IMEI ভিত্তিক রিয়েল-টাইম লোকেশন মনিটরিং</p>
+                <h1 class="text-xl font-bold">🛡️ অ্যাডমিন ট্র্যাকিং ড্যাশবোর্ড</h1>
+                <p class="text-xs text-red-100 mt-1">IMEI ভিত্তিক নিখুঁত রিয়েল-টাইম ট্র্যাকিং</p>
             </div>
             <button onclick="logoutAdmin()" class="bg-red-700 hover:bg-red-800 text-white px-3 py-1.5 rounded-lg text-xs font-semibold shadow">লগআউট 🔓</button>
         </div>
 
         <div class="bg-white p-6 rounded-b-2xl shadow-lg space-y-6 border-x border-b border-gray-200">
             <div class="space-y-2">
-                <label class="block text-xs font-semibold text-gray-700 uppercase">🔍 হারিয়ে যাওয়া ফোনের IMEI 1 লিখুন:</label>
+                <label class="block text-xs font-semibold text-gray-700 uppercase">🔍 যে ফোনের IMEI দিয়ে ট্র্যাক করতে চান:</label>
                 <div class="flex gap-2">
                     <input type="text" id="searchImei" placeholder="যেমন: 865432041234567" class="flex-1 p-3 border rounded-xl focus:outline-none text-sm">
-                    <button onclick="startTrackingByIMEI()" class="bg-red-600 text-white px-5 py-3 rounded-xl font-semibold hover:bg-red-700 transition shadow text-sm">লাইভ ট্র্যাক</button>
+                    <button onclick="searchAndTrackByIMEI()" class="bg-red-600 text-white px-5 py-3 rounded-xl font-semibold hover:bg-red-700 transition shadow text-sm">সার্চ ও ট্র্যাক</button>
                 </div>
             </div>
 
             <!-- Result -->
             <div id="resultBox" class="hidden bg-red-50 p-5 rounded-xl border border-red-200 space-y-4 shadow-inner">
                 <h3 class="font-bold text-red-900 border-b border-red-200 pb-2 text-xs uppercase flex items-center justify-center gap-2">
-                    📡 <span class="animate-pulse text-red-600">● ১০০% লাইভ ট্র্যাকিং সচল</span>
+                    📡 <span class="animate-pulse text-red-600">● টার্গেট ডিভাইস লাইভ ট্র্যাকিং সচল</span>
                 </h3>
 
                 <div class="grid grid-cols-2 gap-3 text-sm">
                     <div class="bg-white p-3 rounded-xl shadow-sm">
-                        <span class="text-[10px] text-gray-400 block uppercase">IMEI 1</span>
-                        <span id="resImei1" class="font-semibold text-gray-800 text-xs">-</span>
+                        <span class="text-[10px] text-gray-400 block uppercase">টার্গেট IMEI</span>
+                        <span id="resImei" class="font-semibold text-gray-800 text-xs">-</span>
                     </div>
                     <div class="bg-white p-3 rounded-xl shadow-sm">
                         <span class="text-[10px] text-gray-400 block uppercase">সিম নম্বর</span>
@@ -149,28 +137,25 @@
                     </div>
                 </div>
 
-                <div class="bg-white p-3 rounded-xl shadow-sm text-xs text-gray-600 space-y-1">
-                    <div>নির্ভুলতা: <span id="resAccuracy" class="font-semibold text-indigo-600">-</span></div>
-                    <div>শেষ আপডেট সময়: <span id="resTime" class="font-semibold text-gray-800">-</span></div>
+                <div class="bg-white p-3 rounded-xl shadow-sm text-xs text-gray-600">
+                    সর্বশেষ সিঙ্কের সময়: <span id="resTime" class="font-semibold text-gray-800">-</span>
                 </div>
 
                 <div>
                     <a id="mapButton" href="#" target="_blank" class="flex items-center justify-center gap-2 w-full bg-blue-600 text-white py-3 rounded-xl font-semibold hover:bg-blue-700 transition shadow text-xs">
-                        📍 সরাসরি গুগল ম্যাপে লাইভ লোকেশন দেখুন (১০০% সঠিক)
+                        📍 সরাসরি গুগল ম্যাপে এই ফোনের লোকেশন দেখুন
                     </a>
                 </div>
 
                 <hr class="border-red-200">
 
-                <div class="space-y-2">
-                    <span class="text-[11px] font-bold text-red-800 uppercase block">রিমোট সিকিউরিটি কমান্ড:</span>
-                    <button onclick="sendRemoteLock()" class="w-full bg-red-700 hover:bg-red-800 text-white py-3 rounded-xl font-semibold shadow text-xs">🔒 রিমোট ডিসপ্লে লক করুন</button>
-                    <button onclick="sendSilentMode()" class="w-full bg-gray-800 hover:bg-gray-900 text-white py-3 rounded-xl font-semibold shadow text-xs">🔕 ফোন সাইলেন্ট মোডে ফেলুন</button>
-                </div>
+                <button onclick="sendLockCmd()" class="w-full bg-red-700 hover:bg-red-800 text-white py-3 rounded-xl font-semibold shadow text-xs">
+                    🔒 এই ডিভাইসে রিমোট ডিসপ্লে লক কমান্ড পাঠান
+                </button>
             </div>
 
             <div id="errorBox" class="hidden bg-gray-50 p-3 rounded-xl border border-gray-300 text-gray-700 text-xs text-center font-medium">
-                ❌ এই IMEI নম্বরের কোনো ডিভাইস ফায়ারবেসে পাওয়া যায়নি বা লাইভ সিগন্যাল বন্ধ আছে!
+                ❌ এই IMEI নম্বরের কোনো ডিভাইস ফায়ারবেসে পাওয়া যায়নি! দয়া করে সঠিক IMEI লিখে সার্চ করুন।
             </div>
         </div>
     </div>
