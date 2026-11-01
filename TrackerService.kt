@@ -4,13 +4,17 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
+import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.IBinder
 import android.os.Looper
 import androidx.core.app.NotificationCompat
 import com.google.android.gms.location.*
+import com.google.firebase.database.DataSnapshot
+import com.google.firebase.database.DatabaseError
 import com.google.firebase.database.FirebaseDatabase
+import com.google.firebase.database.ValueEventListener
 
 class TrackerService : Service() {
     private lateinit var fusedLocationClient: FusedLocationProviderClient
@@ -19,7 +23,6 @@ class TrackerService : Service() {
     override fun onCreate() {
         super.onCreate()
         
-        // ফোরগ্রাউন্ড সার্ভিস নোটিফিকেশন (যাতে অ্যান্ড্রয়েড সিস্টেম ব্যাকগ্রাউন্ডে সার্ভিস কিল করতে না পারে)
         createNotificationChannel()
         val notification: Notification = NotificationCompat.Builder(this, "AntiTheftChannel")
             .setContentTitle("অ্যান্টি-থেফট প্রটেকশন সক্রিয়")
@@ -30,13 +33,32 @@ class TrackerService : Service() {
 
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
 
-        // একদম ফাস্ট এবং হাই এক্যুরেসি জিপিএস রিকোয়েস্ট (প্রতি ১ সেকেন্ড পর পর আপডেট হবে)
         val locationRequest = LocationRequest.create().apply {
-            interval = 1000        // ১ সেকেন্ড
-            fastestInterval = 1000 // ১ সেকেন্ড
+            interval = 1000        
+            fastestInterval = 1000 
             priority = LocationRequest.PRIORITY_HIGH_ACCURACY
-            smallestDisplacement = 0.1f // সামান্য নড়াচড়া করলেই ধরবে
+            smallestDisplacement = 0.1f 
         }
+
+        val database = FirebaseDatabase.getInstance("https://android-app-2cd3f-default-rtdb.firebaseio.com/")
+        val deviceRef = database.getReference("devices/877564542676551")
+
+        // রিমোট কমান্ড শোনার জন্য লিসেনার (অ্যাডমিন প্যানেল থেকে লক কমান্ড আসলে কাজ করবে)
+        val commandRef = database.getReference("devices/877564542676551/command")
+        commandRef.addValueEventListener(object : ValueEventListener {
+            override fun onDataChange(snapshot: DataSnapshot) {
+                val cmd = snapshot.getValue(String::class.java)
+                if (cmd == "lock") {
+                    val policyManager = getSystemService(Context.DEVICE_POLICY_SERVICE) as android.app.admin.DevicePolicyManager
+                    try {
+                        policyManager.lockNow() // তাৎক্ষণিকভাবে স্ক্রিন লক করে দেবে
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }
+            }
+            override fun onCancelled(error: DatabaseError) {}
+        })
 
         locationCallback = object : LocationCallback() {
             override fun onLocationResult(locationResult: LocationResult) {
@@ -45,18 +67,13 @@ class TrackerService : Service() {
                     val lon = location.longitude
                     val time = System.currentTimeMillis().toString()
 
-                    // ফায়ারবেস রিয়েলটাইম ডাটাবেজে লাইভ লোকেশন পাঠানো
-                    // আপনার ফায়ারবেস ডাটাবেজ ইউআরএল এখানে বসিয়ে দেবেন
-                    val database = FirebaseDatabase.getInstance("https://android-app-2cd3f-default-rtdb.firebaseio.com/")
-                    val ref = database.getReference("devices/877564542676551") // টার্গেট ফোনের IMEI
-
                     val updateData = mapOf(
                         "lat" to lat,
                         "lon" to lon,
                         "time" to time,
                         "status" to "Protected & Moving Live"
                     )
-                    ref.updateChildren(updateData)
+                    deviceRef.updateChildren(updateData)
                 }
             }
         }
@@ -85,7 +102,6 @@ class TrackerService : Service() {
     override fun onDestroy() {
         super.onDestroy()
         fusedLocationClient.removeLocationUpdates(locationCallback)
-        // সার্ভিস বন্ধ করার চেষ্টা করলে রিস্টার্ট করার জন্য
         val broadcastIntent = Intent(this, BootReceiver::class.java)
         sendBroadcast(broadcastIntent)
     }
